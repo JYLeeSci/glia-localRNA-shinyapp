@@ -25,6 +25,7 @@
 library(shiny)
 library(DT)
 library(dplyr)
+library(plotly)
 
 
 # 2. LOAD DATA
@@ -122,6 +123,17 @@ ui <- navbarPage(
 
     # --- Custom CSS Styling ---
     tags$head(
+      # Ensure Plotly.js is available globally for all widgets (Shinylive fix)
+      tags$script(HTML("
+        // Wait for htmlwidgets to load Plotly, then make it globally available
+        (function checkPlotly() {
+          if (typeof window.Plotly !== 'undefined') {
+            window.Plotly = window.Plotly;
+          } else {
+            setTimeout(checkPlotly, 100);
+          }
+        })();
+      ")),
       tags$style(
         HTML(
           "
@@ -283,7 +295,8 @@ ui <- navbarPage(
       plotly::plotlyOutput("do_plot", height = "590px")
     ),
     column(6,
-      plotly::plotlyOutput("do_nonloc_plot", height = "590px")
+      # Use a UI output to delay rendering of the second plot
+      uiOutput("do_nonloc_plot_ui", height = "590px")
     )
        ),
      # Single shared click-driven table below both plots
@@ -419,6 +432,10 @@ server <- function(input, output, session) {
     }
 
     # base scatter with size mapped to count; hide automatic legend for trace
+    # Use explicit inferno color palette for Shinylive compatibility
+    inferno_colors <- c("#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", 
+                        "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4")
+    
     p <- plotly::plot_ly(
       data = df,
       x = ~log2foldchange,
@@ -444,7 +461,7 @@ server <- function(input, output, session) {
         )
       ),
       color = ~count,
-      colors = viridis::inferno(20),
+      colors = inferno_colors,
       showlegend = FALSE
     )
 
@@ -477,6 +494,12 @@ server <- function(input, output, session) {
 
   # Plotly volcano-like plot for disease ontology (non-localised)
   output$do_nonloc_plot <- plotly::renderPlotly({
+    # Validate data is available
+    req(nrow(do_nonloc_data) > 0)
+    validate(
+      need(nrow(do_nonloc_data) > 0, "Loading non-localised data...")
+    )
+    
     df <- do_nonloc_data %>%
       filter(!is.infinite(log2foldchange)) %>%
       mutate(yval = -log10(adj_pvalue)) %>%
@@ -503,6 +526,10 @@ server <- function(input, output, session) {
       sizes <- rep((size_min + size_max)/2, nrow(df))
     }
 
+    # Use explicit inferno color palette for Shinylive compatibility
+    inferno_colors <- c("#000004", "#1b0c41", "#4a0c6b", "#781c6d", "#a52c60", 
+                        "#cf4446", "#ed6925", "#fb9b06", "#f7d13d", "#fcffa4")
+    
     p <- plotly::plot_ly(
       data = df,
       x = ~log2foldchange,
@@ -522,11 +549,13 @@ server <- function(input, output, session) {
           orientation = 'h',
           x = 0.5,
           xanchor = 'center',
-          y = -0.18
+          y = -0.02,
+          yanchor = 'top',
+          len = 0.7
         )
       ),
       color = ~count,
-      colors = viridis::inferno(20),
+      colors = inferno_colors,
       showlegend = FALSE
     )
 
@@ -554,6 +583,15 @@ server <- function(input, output, session) {
 
     p
   })
+
+  # UI output for the second plot - renders after the first plot is visible
+  output$do_nonloc_plot_ui <- renderUI({
+    plotly::plotlyOutput("do_nonloc_plot", height = "590px")
+  })
+  
+  # Ensure both plots render even when not visible (fixes Shinylive timing)
+  outputOptions(output, "do_plot", suspendWhenHidden = FALSE)
+  outputOptions(output, "do_nonloc_plot", suspendWhenHidden = FALSE)
 
   # Use reactiveValues and observers to capture clicks from either plot
   selected <- reactiveValues(data = NULL, source = NULL)
