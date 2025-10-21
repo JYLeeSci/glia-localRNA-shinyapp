@@ -78,6 +78,38 @@ reactome_data <- tryCatch({
 })
 
 
+# Complementary non-localised disease ontology dataset
+do_nonloc_data <- tryCatch({
+  readRDS("data/disease-ontology-nonlocalised.RDS")
+}, error = function(e) {
+  data.frame(
+    gene_name = c("pros", "GeneB", "GeneC"),
+    chromosome = c("chr1", "chr2", "chrX"),
+    log2FC = c(0.2, -0.1, 0.5),
+    p_value = c(0.05, 0.3, 0.01),
+    peak_sequence = c("AUGC", "GCAA", "UUAA"),
+    notes = c("Nonloc Note 1", "Nonloc Note 2", "Nonloc Note 3"),
+    stringsAsFactors = FALSE
+  )
+})
+
+
+# Complementary non-localised reactome dataset
+reactome_nonloc_data <- tryCatch({
+  readRDS("data/reactome-nonlocalised.RDS")
+}, error = function(e) {
+  data.frame(
+    gene_name = c("pros", "GeneB", "GeneC"),
+    chromosome = c("chr1", "chr2", "chrX"),
+    log2FC = c(0.3, -0.2, 0.6),
+    p_value = c(0.02, 0.25, 0.005),
+    peak_sequence = c("AUAA", "GCAA", "UUCC"),
+    notes = c("Nonloc R Note 1", "Nonloc R Note 2", "Nonloc R Note 3"),
+    stringsAsFactors = FALSE
+  )
+})
+
+
 # 3. DEFINE UI (USER INTERFACE)
 # ------------------------------------------------------------------------------
 ui <- navbarPage(
@@ -115,12 +147,10 @@ ui <- navbarPage(
     sidebarLayout(
       # --- Sidebar Panel ---
       sidebarPanel(
-        width = 3,
+        width = 2,
 
         # Publication Information Panel
         wellPanel(
-          h4("Publication"),
-          tags$p("This web resource accompanies the publication:"),
           tags$p(
             tags$strong(
               "Murine glial protrusion transcripts predict localized Drosophila glial mRNAs involved in plasticity"
@@ -239,17 +269,36 @@ ui <- navbarPage(
           # Tab 3: Disease ontology Enrichment
           tabPanel(
             "Disease Ontology",
-            h3("Human disease ontolgy enrichment analysis of of 1,740 glial localised RNAs"),
+            h3("Human disease ontolgy enrichment analysis of 1,740 glial localised RNAs"),
+            
+            # Explanatory text for the plots
+            div(style = "margin-bottom: 10px;",
+                tags$p("Interactive volcano plots of enriched disease ontology terms. Left: predicted localised terms; Right: predicted NOT localised terms."),
+                tags$p("Click on the term to see the associated genes.")
+            ),
+            hr(),
+       # Two interactive plotly plots side-by-side
+       fluidRow(
+    column(6,
+      plotly::plotlyOutput("do_plot", height = "590px")
+    ),
+    column(6,
+      plotly::plotlyOutput("do_nonloc_plot", height = "590px")
+    )
+       ),
+     # Single shared click-driven table below both plots
+     fluidRow(
+   column(12, DT::dataTableOutput("do_click_table"))
+     ),
+     tags$br(),
+     tags$br(),
+     # prominent separator between reactive table and following static content
+     tags$hr(style = "border-top: 3px solid #444; margin-top: 10px; margin-bottom: 18px;"),
+        # Move the descriptive header and table intro below the plots
+        tags$br(),
+            h3("Full table: Human disease ontolgy enrichment analysis of 1,740 glial localised RNAs"),
             p("The table below contains disease ontology enrichment analysis for each human disease term and the list of associated genes."),
             hr(),
-            div(
-              style = "margin-bottom: 10px;",
-              tags$img(
-                src = "do_plot.png",
-                width = "40%",
-                style = "object-fit: contain; border: none; display: block; margin-left: auto; margin-right: auto;"
-              )
-            ),
             div(
               style = "background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;",
               h4("Column Definitions"),
@@ -258,7 +307,8 @@ ui <- navbarPage(
               p(HTML("<strong>adj_pvalue:</strong> Bonferroni adjusted p-value of term enrichment")),
               p(HTML("<strong>count_in_genome:</strong> Total number of genes associated with term in genome background")),
               p(HTML("<strong>count_in_localised_genes:</strong> Number of glial localised genes associated with term")),
-              p(HTML("<strong>dmel_gene_list:</strong> List of Drosophila genes associated with the disease term"))
+              p(HTML("<strong>dmel_gene_list:</strong> List of Drosophila genes associated with the disease term")),
+              p(HTML("<strong>mmus_gene_list:</strong> List of mouse genes - direct conversion of fly-to-mouse genes with high-homolog score"))
             ),
             hr(),
             DT::dataTableOutput("do_table"),
@@ -272,16 +322,24 @@ ui <- navbarPage(
           tabPanel(
             "Reactome",
             h3("Reactome enrichment analysis of 1,740 glial localised RNAs"),
-            p("The table below contains Reactome enrichment analysis for each term and the list of associated genes."),
+            div(style = "margin-bottom: 10px;",
+                tags$p("Interactive volcano plot. Click on the term to see the associated genes."),
+            ),
             hr(),
             div(
               style = "margin-bottom: 10px;",
-              tags$img(
-                src = "reactome_plot.png",
-                width = "50%",
-                style = "object-fit: contain; border: none; display: block; margin-left: auto; margin-right: auto;"
-              )
+              plotly::plotlyOutput("reactome_plotly", height = "708px"),
+              tags$br(),
+              DT::dataTableOutput("reactome_click_table")
             ),
+            tags$br(),
+            tags$br(),
+            tags$hr(style = "border-top: 3px solid #444; margin-top: 10px; margin-bottom: 18px;"),
+
+            tags$br(),
+            h3("Full table: Reactome enrichment analysis of 1,740 glial localised RNAs"),
+            p("The table below contains Reactome enrichment analysis for each term and the list of associated genes."),
+            hr(),
             div(
               style = "background-color: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px;",
               h4("Column Definitions"),
@@ -290,7 +348,8 @@ ui <- navbarPage(
               p(HTML("<strong>adj_pvalue:</strong> Bonferroni adjusted p-value of term enrichment")),
               p(HTML("<strong>count_in_genome:</strong> Total number of genes associated with term in genome background")),
               p(HTML("<strong>count_in_localised_genes:</strong> Number of glial localised genes associated with term")),
-              p(HTML("<strong>dmel_gene_list:</strong> List of Drosophila genes associated with the Reactome term"))
+              p(HTML("<strong>dmel_gene_list:</strong> List of Drosophila genes associated with the Reactome term")),
+              p(HTML("<strong>mmus_gene_list:</strong> List of mouse genes - direct conversion of fly-to-mouse genes with high-homolog score"))
             ),
             hr(),
             DT::dataTableOutput("reactome_table"),
@@ -332,6 +391,210 @@ server <- function(input, output, session) {
     )
   })
 
+  # Plotly volcano-like plot for disease ontology (localised)
+  output$do_plot <- plotly::renderPlotly({
+    df <- do_data %>%
+      filter(!is.infinite(log2foldchange)) %>%
+      mutate(yval = -log10(adj_pvalue)) %>%
+      dplyr::rename("count" = count_in_localised_genes)
+
+    # compute shared ranges and color scale across both datasets
+    df_nonloc_tmp <- do_nonloc_data %>% filter(!is.infinite(log2foldchange)) %>% mutate(yval = -log10(adj_pvalue))
+    x_min <- min(c(df$log2foldchange, df_nonloc_tmp$log2foldchange), na.rm = TRUE)
+    x_max <- max(c(df$log2foldchange, df_nonloc_tmp$log2foldchange), na.rm = TRUE)
+    y_min <- min(c(df$yval, df_nonloc_tmp$yval), na.rm = TRUE)
+    y_max <- max(c(df$yval, df_nonloc_tmp$yval), na.rm = TRUE)
+    count_min <- min(c(df$count, df_nonloc_tmp$count), na.rm = TRUE)
+    count_max <- max(c(df$count, df_nonloc_tmp$count), na.rm = TRUE)
+
+    df <- df %>% mutate(put_label = if_else(adj_pvalue < 0.001 & log2foldchange >= 1.8, disease, NA_character_))
+
+    # size mapping: scale counts into reasonable pixel sizes
+    size_min <- 6
+    size_max <- 18
+    if (!all(is.na(df$count))) {
+      sizes <- scales::rescale(df$count, to = c(size_min, size_max), from = c(count_min, count_max))
+    } else {
+      sizes <- rep((size_min + size_max)/2, nrow(df))
+    }
+
+    # base scatter with size mapped to count; hide automatic legend for trace
+    p <- plotly::plot_ly(
+      data = df,
+      x = ~log2foldchange,
+      y = ~yval,
+      customdata = ~disease,
+      source = "do_plot",
+      type = 'scatter',
+      mode = 'markers',
+      marker = list(
+        size = sizes, 
+        opacity = 0.85, 
+        line = list(width = 0), 
+        cmin = count_min, 
+        cmax = count_max, 
+        colorbar = list(
+          title = list(text = ""),
+          orientation = 'h', 
+          x = 0.5, 
+          xanchor = 'center', 
+          y = -0.25,
+          yanchor = 'top',
+          len = 0.7
+        )
+      ),
+      color = ~count,
+      colors = viridis::inferno(20),
+      showlegend = FALSE
+    )
+
+    # add text labels separately (only where put_label not NA)
+    labels_df <- df %>% filter(!is.na(put_label))
+    if (nrow(labels_df) > 0) {
+      p <- p %>% plotly::add_text(data = labels_df, x = ~log2foldchange, y = ~yval,
+                                   text = ~put_label, textposition = 'right', showlegend = FALSE,
+                                   textfont = list(color = 'gray40', size = 13))
+    }
+
+    # add dashed reference lines
+    p <- p %>%
+      plotly::layout(
+        title = list(text = 'Predicted localised', x = 0.02, xanchor = 'left'),
+        shapes = list(
+          list(type = 'line', x0 = 0, x1 = 0, xref = 'x', y0 = 0, y1 = y_max, yref = 'y',
+               line = list(dash = 'dash', color = 'gray80', width = 0.8)),
+          list(type = 'line', x0 = 0.8, x1 = 3.5, xref = 'x',
+               y0 = -log10(0.01), y1 = -log10(0.01), yref = 'y', line = list(dash = 'dash', color = 'gray80', width = 0.8))
+        ),
+        xaxis = list(title = 'log2FoldChange', range = c(0.8, 3.5)),
+        yaxis = list(title = 'Adjusted p-value (-log10)', range = c(0, 49)),
+        showlegend = FALSE,
+        margin = list(l = 60, r = 20, b = 80, t = 40)
+      )
+
+    p
+  })
+
+  # Plotly volcano-like plot for disease ontology (non-localised)
+  output$do_nonloc_plot <- plotly::renderPlotly({
+    df <- do_nonloc_data %>%
+      filter(!is.infinite(log2foldchange)) %>%
+      mutate(yval = -log10(adj_pvalue)) %>%
+      dplyr::rename("count" = count_in_localised_genes)
+
+    # compute same shared ranges as used for the localised plot
+    df_local_tmp <- do_data %>% filter(!is.infinite(log2foldchange)) %>% mutate(yval = -log10(adj_pvalue)) %>% dplyr::rename("count" = count_in_localised_genes)
+    x_min <- min(c(df$log2foldchange, df_local_tmp$log2foldchange), na.rm = TRUE)
+    x_max <- max(c(df$log2foldchange, df_local_tmp$log2foldchange), na.rm = TRUE)
+    y_min <- min(c(df$yval, df_local_tmp$yval), na.rm = TRUE)
+    y_max <- max(c(df$yval, df_local_tmp$yval), na.rm = TRUE)
+    count_min <- min(c(df$count, df_local_tmp$count), na.rm = TRUE)
+    count_max <- max(c(df$count, df_local_tmp$count), na.rm = TRUE)
+
+    # label for non-localised: anything above y > 2
+    df <- df %>% mutate(put_label = if_else(yval > 2, disease, NA_character_))
+
+    # size mapping for nonlocalised
+    size_min <- 6
+    size_max <- 18
+    if (!all(is.na(df$count))) {
+      sizes <- scales::rescale(df$count, to = c(size_min, size_max), from = c(count_min, count_max))
+    } else {
+      sizes <- rep((size_min + size_max)/2, nrow(df))
+    }
+
+    p <- plotly::plot_ly(
+      data = df,
+      x = ~log2foldchange,
+      y = ~yval,
+      customdata = ~disease,
+      source = "do_nonloc_plot",
+      type = 'scatter',
+      mode = 'markers',
+      marker = list(
+        size = sizes,
+        opacity = 0.85,
+        line = list(width = 0),
+        cmin = count_min,
+        cmax = count_max,
+        colorbar = list(
+          title = list(text = ""),
+          orientation = 'h',
+          x = 0.5,
+          xanchor = 'center',
+          y = -0.18
+        )
+      ),
+      color = ~count,
+      colors = viridis::inferno(20),
+      showlegend = FALSE
+    )
+
+    labels_df <- df %>% filter(!is.na(put_label))
+    if (nrow(labels_df) > 0) {
+      p <- p %>% plotly::add_text(data = labels_df, x = ~log2foldchange, y = ~yval,
+                                   text = ~put_label, textposition = 'right', showlegend = FALSE,
+                                   textfont = list(color = 'gray40', size = 11))
+    }
+
+    p <- p %>%
+      plotly::layout(
+        title = list(text = 'Predicted NOT localised', x = 0.02, xanchor = 'left'),
+        shapes = list(
+          list(type = 'line', x0 = 0, x1 = 0, xref = 'x', y0 = 0, y1 = y_max, yref = 'y',
+               line = list(dash = 'dash', color = 'gray80', width = 0.8)),
+          list(type = 'line', x0 = 0.8, x1 = 3.5, xref = 'x',
+               y0 = -log10(0.01), y1 = -log10(0.01), yref = 'y', line = list(dash = 'dash', color = 'gray80', width = 0.8))
+        ),
+        xaxis = list(title = 'log2FoldChange', range = c(0.8, 3.5)),
+        yaxis = list(title = 'Adjusted p-value (-log10)', range = c(0, 49)),
+        showlegend = FALSE,
+        margin = list(l = 60, r = 20, b = 80, t = 40)
+      )
+
+    p
+  })
+
+  # Use reactiveValues and observers to capture clicks from either plot
+  selected <- reactiveValues(data = NULL, source = NULL)
+
+  observeEvent(plotly::event_data("plotly_click", source = "do_plot"), {
+    ed <- plotly::event_data("plotly_click", source = "do_plot")
+    if (!is.null(ed) && nrow(ed) > 0) {
+      clicked_term <- ed$customdata[1]
+      if (!is.null(clicked_term) && clicked_term != "") {
+        selected$data <- do_data %>% filter(disease == clicked_term)
+        selected$source <- "local"
+      }
+    }
+  })
+
+  observeEvent(plotly::event_data("plotly_click", source = "do_nonloc_plot"), {
+    ed <- plotly::event_data("plotly_click", source = "do_nonloc_plot")
+    if (!is.null(ed) && nrow(ed) > 0) {
+      clicked_term <- ed$customdata[1]
+      if (!is.null(clicked_term) && clicked_term != "") {
+        selected$data <- do_nonloc_data %>% filter(disease == clicked_term)
+        selected$source <- "nonloc"
+      }
+    }
+  })
+
+  output$do_click_table <- DT::renderDataTable({
+    if (is.null(selected$data)) {
+      DT::datatable(data.frame(message = "Click a point on either volcano to show the disease row"), options = list(dom = 't'), rownames = FALSE)
+    } else {
+      # Only show the requested columns if they exist
+      wanted <- c("disease", "dmel_gene_list", "mmus_gene_list")
+      present <- intersect(wanted, colnames(selected$data))
+      if (length(present) == 0) {
+        DT::datatable(data.frame(message = "Selected row has none of the requested columns (disease, dmel_gene_list, mmus_gene_list)"), options = list(dom = 't'), rownames = FALSE)
+      } else {
+        DT::datatable(selected$data %>% dplyr::select(all_of(present)), options = list(pageLength = 5, dom = 't'), rownames = FALSE, class = 'cell-border stripe')
+      }
+    }
+  })
+
   # --- Server logic for Tab 4: Reactome Table ---
   output$reactome_table <- DT::renderDataTable({
     DT::datatable(
@@ -341,6 +604,108 @@ server <- function(input, output, session) {
       rownames = FALSE,
       class = 'cell-border stripe'
     )
+  })
+
+  # Plotly volcano-like plot for Reactome enrichment
+  output$reactome_plotly <- plotly::renderPlotly({
+    # defensive: ensure expected columns exist (name, log2foldchange, adj_pvalue, count_in_gl)
+    df <- reactome_data %>% dplyr::filter(!is.infinite(log2foldchange)) %>% dplyr::mutate(yval = -log10(adj_pvalue))
+
+    if (!"count_in_gl" %in% colnames(df)) {
+      # try common alternative names
+      alt <- intersect(c("count_in_localised_genes", "count_in_localised_genes.x", "count"), colnames(df))
+      if (length(alt) > 0) df$count_in_gl <- df[[alt[1]]] else df$count_in_gl <- 1
+    }
+
+    # label logic copied from ggplot pipeline
+    df <- df %>%
+      dplyr::mutate(put_label = if_else(yval > 15 | log2foldchange > 2.5, name, NA_character_)) %>%
+      dplyr::mutate(put_label = if_else(yval < 5, NA_character_, put_label))
+
+  # size mapping (increased ranges for larger symbols)
+  # Previously 6-18; increase to 8-36 for greater visual impact
+  size_min <- 5
+  size_max <- 10
+    count_min <- min(df$count_in_gl, na.rm = TRUE)
+    count_max <- max(df$count_in_gl, na.rm = TRUE)
+    if (!all(is.na(df$count_in_gl))) {
+      sizes <- scales::rescale(df$count_in_gl, to = c(size_min, size_max), from = c(count_min, count_max))
+    } else {
+      sizes <- rep((size_min + size_max)/2, nrow(df))
+    }
+
+    y_max <- max(df$yval, na.rm = TRUE)
+
+    # Use sizemode = 'diameter' and a sizeref to help plotly map data sizes to pixels
+    # sizeref formula: 2.0 * max(size array) / (desired_max_marker_size_in_pixels^2)
+    # We'll set desired_max_marker_size_in_pixels to size_max for a reasonable mapping
+    desired_max_px <- size_max
+    # avoid division by zero
+    max_size_val <- ifelse(length(sizes) > 0, max(sizes, na.rm = TRUE), size_max)
+    sizeref_val <- ifelse(max_size_val > 0, 2.0 * max_size_val / (desired_max_px^2), 1)
+
+    p <- plotly::plot_ly(
+      data = df,
+      x = ~log2foldchange,
+      y = ~yval,
+      customdata = ~name,
+      source = "reactome_plot",
+      type = 'scatter',
+      mode = 'markers',
+      marker = list(size = sizes, opacity = 0.8, line = list(width = 0), sizemode = 'diameter', sizeref = sizeref_val),
+      color = I('steelblue'),
+      showlegend = FALSE
+    )
+
+    labels_df <- df %>% filter(!is.na(put_label))
+    if (nrow(labels_df) > 0) {
+      p <- p %>% plotly::add_text(data = labels_df, x = ~log2foldchange, y = ~yval,
+                                   text = ~put_label, textposition = 'right', showlegend = FALSE,
+                                   textfont = list(color = 'gray40', size = 11))
+    }
+
+    p <- p %>% plotly::layout(
+      title = list(text = 'Reactome enrichment', x = 0.02, xanchor = 'left'),
+      shapes = list(
+        list(type = 'line', x0 = 1, x1 = 1, xref = 'x', y0 = 0, y1 = y_max, yref = 'y', line = list(dash = 'dash', color = 'gray80', width = 0.8)),
+        list(type = 'line', x0 = 0.8, x1 = 3.5, xref = 'x', y0 = -log10(0.01), y1 = -log10(0.01), yref = 'y', line = list(dash = 'dash', color = 'gray80', width = 0.8))
+      ),
+      xaxis = list(title = list(text = 'log2FoldChange', font = list(size = 13)), range = c(1, 3.5)),
+      yaxis = list(title = list(text = 'Adjusted p-value (-log10)', font = list(size = 13)), range = c(0, 70)),
+      font = list(size = 13),
+      margin = list(l = 60, r = 20, b = 80, t = 40)
+    )
+
+    # annotate p=0.01 label (moved to fit new x range)
+  p <- p %>% plotly::add_annotations(x = 1.2, y = -log10(0.05) + 2, text = 'p=0.01', showarrow = FALSE, opacity = 0.5, font = list(size = 14))
+
+    p
+  })
+
+  # Capture clicks on Reactome plot and show selected row
+  reactome_selected <- reactiveValues(data = NULL)
+  observeEvent(plotly::event_data("plotly_click", source = "reactome_plot"), {
+    ed <- plotly::event_data("plotly_click", source = "reactome_plot")
+    if (!is.null(ed) && nrow(ed) > 0) {
+      clicked_name <- ed$customdata[1]
+      if (!is.null(clicked_name) && clicked_name != "") {
+        reactome_selected$data <- reactome_data %>% filter(name == clicked_name)
+      }
+    }
+  })
+
+  output$reactome_click_table <- DT::renderDataTable({
+    if (is.null(reactome_selected$data)) {
+      DT::datatable(data.frame(message = "Click a point on the Reactome plot to show the term row"), options = list(dom = 't'), rownames = FALSE)
+    } else {
+      wanted <- c("name", "dmel_gene_list", "mmus_gene_list")
+      present <- intersect(wanted, colnames(reactome_selected$data))
+      if (length(present) == 0) {
+        DT::datatable(data.frame(message = "Selected row has none of the requested columns (name, dmel_gene_list, mmus_gene_list)"), options = list(dom = 't'), rownames = FALSE)
+      } else {
+        DT::datatable(reactome_selected$data %>% dplyr::select(all_of(present)), options = list(pageLength = 5, dom = 't'), rownames = FALSE, class = 'cell-border stripe')
+      }
+    }
   })
 
   # Download handler for the full dataset
